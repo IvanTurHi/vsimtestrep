@@ -4,17 +4,17 @@ from random import randrange
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 class Simulator:
-	def __init__(self, number_of_sites=0, populations_number=1, number_of_susceptible_groups=1, seed=None, sampling_probability=False, memory_optimization=None):
+	def __init__(self, number_of_sites=0, populations_number=1, number_of_susceptible_groups=1, seed=None, sampling_probability=False, memory_optimization=False):
 		self.fig = None
 		if seed == None:
 			seed = int(randrange(sys.maxsize))
-		print('User seed:', seed)
+		print('User seed:', seed) #TODO
 
 		self.simulation = BirthDeathModel(number_of_sites=number_of_sites, populations_number=populations_number, \
-			number_of_susceptible_groups=number_of_susceptible_groups, seed=seed, sampling_probability=sampling_probability, \
-			memory_optimization=memory_optimization)
+			number_of_susceptible_groups=number_of_susceptible_groups, seed=seed, sampling_probability=sampling_probability, memory_optimization=memory_optimization)
 
 
 	def print_basic_parameters(self):
@@ -33,6 +33,13 @@ class Simulator:
 			self.simulation.print_populations()
 		if immunity_model:
 			self.simulation.print_immunity_model()
+
+
+	def set_initial_haplotype(self, proportion):
+		self.simulation.set_initial_haplotype(proportion)
+
+	def set_step_haplotype(self, proportion):
+		self.simulation.set_step_haplotype(proportion)
 
 
 	def set_transmission_rate(self, rate, haplotype=None):
@@ -99,15 +106,15 @@ class Simulator:
 		self.set_settings(file_template)
 
 
-	def output_newick(self, file_template="newick_output", file_path = None):
+	def output_newick(self, file_template=None, file_path = None):
 		pruferSeq, times, mut, populations = self.simulation.output_tree_mutations()
 		writeGenomeNewick(pruferSeq, times, populations, file_template, file_path)
 
-	def output_mutations(self, file_template="mutation_output", file_path = None):
+	def output_mutations(self, file_template=None, file_path = None):
 		pruferSeq, times, mut, populations = self.simulation.output_tree_mutations()
 		writeMutations(mut, len(pruferSeq), file_template, file_path)
 
-	def output_migrations(self, file_template="migrations", file_path = None):
+	def output_migrations(self, file_template=None, file_path = None):
 		self.simulation.output_migrations(file_template, file_path)
 
 	def output_sample_data(self, output_print=False):
@@ -134,6 +141,9 @@ class Simulator:
 	def output_state(self):
 		self.output_chain_events()
 		self.output_settings()
+
+	def get_tskit_files(self):
+		return self.simulation.get_tskit_files()
 
 	def get_tree(self):
 		return self.simulation.get_tree()
@@ -174,7 +184,7 @@ class Simulator:
 
 		if label_samples == None:
 			self.ax.plot(time_points, sample, "--", label='Samples pop:' + str(population) + ' hap:' + self.simulation.calculate_string(haplotype))
-		elif isinstance(label_label_samples, str) == True:
+		elif isinstance(label_samples, str) == True:
 			self.ax.plot(time_points, sample, "--", label=label_samples)
 		else:
 			print("#TODO")
@@ -242,22 +252,24 @@ class Simulator:
 	def plot(self, name_file=None):
 		if name_file:
 			plt.savefig(name_file)
-		plt.show()
+		else:
+			plt.show()
 		self.fig = None
 
 
-	def simulate(self, iterations=1000, sample_size=None, time=-1, method='direct', attempts=200):
+	def simulate(self, iterations=1000, sample_size=None, epidemic_time=-1, method='direct', attempts=200):
 		if sample_size is None:
-			sample_size = -1
-		if time is None:
-			time = -1
+			sample_size = iterations
+		if epidemic_time is None:
+			epidemic_time = -1
 
+		start_time = time.time()
 		if method == 'direct':
-			self.simulation.SimulatePopulation(iterations, sample_size, time, attempts)
-			self.simulation.Stats()
+			self.simulation.SimulatePopulation(iterations, sample_size, epidemic_time, attempts)
+			self.simulation.Stats(time.time() - start_time)
 		elif method == 'tau':
-			self.simulation.SimulatePopulation_tau(iterations, sample_size, time)
-			self.simulation.Stats()
+			self.simulation.SimulatePopulation_tau(iterations, sample_size, epidemic_time, attempts)
+			self.simulation.Stats(time.time() - start_time)
 		else:
 			print("Unknown method. Choose between 'direct' and 'tau'.")
 
