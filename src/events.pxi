@@ -6,6 +6,9 @@ DEF MUTATION = 3
 DEF SUSCCHANGE = 4
 DEF MIGRATION = 5
 DEF MULTITYPE = 6
+DEF INCUBATION = 7
+DEF SYMPTOMATIC = 8
+DEF ASYMPTOMATIC = 9
 
 cdef class Event:
     cdef:
@@ -84,6 +87,12 @@ cdef class multiEvent:
     def PrintEvent(self):
         if self.type_ == BIRTH:
             tn = "B"
+        elif  self.type_ == INCUBATION:
+            tn = "I"
+        elif  self.type_ == ASYMPTOMATIC:
+            tn = "ASYM"
+        elif  self.type_ == SYMPTOMATIC:
+            tn = "SYM"
         elif  self.type_ == DEATH:
             tn = "D"
         elif  self.type_ == SAMPLING:

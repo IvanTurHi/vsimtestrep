@@ -43,6 +43,10 @@ cdef class BirthDeathModel:
         npy_int64[::1] suscType, sizes, totalSusceptible, totalInfectious, lockdownON, hapToNum, numToHap, tree
         npy_int64[:,::1] susceptible, infectious, initial_susceptible, initial_infectious
 
+        # For splitting Birth
+        npy_int64[::1] totalIncubated, totalAsymptomatic, totalSymptomatic
+        npy_int64[:, ::1] incubated, asymtomatic, symptomatic
+
         double[::1] bRate, dRate, sRate, tmRate, maxEffectiveBirthMigration, suscepCumulTransition, immunePopRate, infectPopRate, popRate, migPopRate, actualSizes, contactDensity, contactDensityBeforeLockdown, contactDensityAfterLockdown, startLD, endLD, samplingMultiplier, times
         double[:,::1] mRate, susceptibility, tEventHapPopRate, suscepTransition, immuneSourcePopRate, hapPopRate, migrationRates, effectiveMigration
         double[:,:,::1] hapMutType, eventHapPopRate, susceptHapPopRate
@@ -154,6 +158,13 @@ cdef class BirthDeathModel:
         self.totalInfectious = np.zeros(self.popNum, dtype=np.int64)
         self.lockdownON = np.zeros(self.popNum, dtype=np.int64)
 
+        self.totalIncubated = np.zeros(self.popNum, dtype=np.int64)
+        self.totalAsymptomatic = np.zeros(self.popNum, dtype=np.int64)
+        self.totalSymptomatic = np.zeros(self.popNum, dtype=np.int64)
+        self.incubated = np.zeros((self.popNum, self.susNum), dtype=np.int64)
+        self.asymtomatic = np.zeros((self.popNum, self.susNum), dtype=np.int64)
+        self.asymtomatic = np.zeros((self.popNum, self.susNum), dtype=np.int64)
+
         self.susceptible = np.zeros((self.popNum, self.susNum), dtype=np.int64)
         self.initial_susceptible = np.zeros((self.popNum, self.susNum), dtype=np.int64)
         self.initial_infectious = np.zeros((self.popNum, self.hapNum), dtype=np.int64)
@@ -222,6 +233,28 @@ cdef class BirthDeathModel:
         self.infectious[pi, hi] += num
         self.totalInfectious[pi] += num
         self.globalInfectious += num
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef inline void NewIncubation(self, Py_ssize_t pi, Py_ssize_t si, Py_ssize_t hi, Py_ssize_t num=1):
+        self.incubated[pi, si] += num
+        self.totalIncubated[pi] += num
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef inline void NewAsymptomatic(self, Py_ssize_t pi, Py_ssize_t si, Py_ssize_t hi, Py_ssize_t num=1):
+        self.incubated[pi, si] -= num
+        self.totalIncubated[pi] -= num
+        self.asymtomatic[pi,si] += num
+        self.totalAsymptomatic[pi] += num
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef inline void NewSymptomatic(self, Py_ssize_t pi, Py_ssize_t si, Py_ssize_t hi, Py_ssize_t num=1):
+        self.asymtomatic[pi,si] -= num
+        self.totalAsymptomatic[pi] -= num
+        self.symptomatic[pi,si] += num
+        self.totalSymptomatic[pi] += num
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -442,8 +475,14 @@ cdef class BirthDeathModel:
                 self.rn = (choose - self.immunePopRate[pi]) / self.infectPopRate[pi]
                 hi, self.rn = fastChoose1(self.hapPopRate[pi], self.infectPopRate[pi], self.rn) # hi - program number
                 ei, self.rn = fastChoose1(self.eventHapPopRate[pi, hi], self.tEventHapPopRate[pi, hi], self.rn)
-                if ei == BIRTH:
-                    self.Birth(pi, hi)
+                //if ei == BIRTH:
+                 //   self.Birth(pi, hi)
+                if ei == INCUBATION:
+                    self.Incubation(pi, hi)
+                elif ei == ASYMPTOMATIC:
+                    self.Asymptomatic(pi, hi)
+                elif ei == SYMPTOMATIC:
+                    self.Symptomatic(pi, hi)
                 elif ei == DEATH:
                     self.Death(pi, hi)
                 elif ei == SAMPLING:
@@ -521,6 +560,53 @@ cdef class BirthDeathModel:
 
         self.bCounter += 1
         self.events.AddEvent(self.currentTime, BIRTH, self.numToHap[hi], pi, si, 0)
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef void Incubation(self, Py_ssize_t pi, Py_ssize_t hi): # hi - program number
+        cdef double ws = 0.0
+
+        for sn in range(self.susNum):
+            ws += self.susceptHapPopRate[pi, hi, sn]
+        si, self.rn = fastChoose1(self.susceptHapPopRate[pi, hi], ws, self.rn)
+
+        self.NewInfections(pi, si, hi)
+        self.NewIncubation(pi, si, hi)
+        self.immuneSourcePopRate[pi, si] = self.suscepCumulTransition[si]*self.susceptible[pi, si]
+        self.UpdateRates(pi, True, True, True)
+
+        self.bCounter += 1
+        self.events.AddEvent(self.currentTime, INCUBATION, self.numToHap[hi], pi, si, 0)
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef void Asymptomatic(self, Py_ssize_t pi, Py_ssize_t hi): # hi - program number
+        cdef double ws = 0.0
+
+        for sn in range(self.susNum):
+            ws += self.susceptHapPopRate[pi, hi, sn]
+        si, self.rn = fastChoose1(self.susceptHapPopRate[pi, hi], ws, self.rn)
+
+        self.NewAsymptomatic(pi, si, hi)
+        self.UpdateRates(pi, True, True, True)
+
+        self.bCounter += 1
+        self.events.AddEvent(self.currentTime, ASYMPTOMATIC, self.numToHap[hi], pi, si, 0)
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef void Symptomatic(self, Py_ssize_t pi, Py_ssize_t hi): # hi - program number
+        cdef double ws = 0.0
+
+        for sn in range(self.susNum):
+            ws += self.susceptHapPopRate[pi, hi, sn]
+        si, self.rn = fastChoose1(self.susceptHapPopRate[pi, hi], ws, self.rn)
+
+        self.NewSymptomatic(pi, si, hi)
+        self.UpdateRates(pi, True, True, True)
+
+        self.bCounter += 1
+        self.events.AddEvent(self.currentTime, SYMPTOMATIC, self.numToHap[hi], pi, si, 0)
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
