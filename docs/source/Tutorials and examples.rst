@@ -123,7 +123,7 @@ Let us simulate the first 110 days. The first argument is the maximal number of 
 
 .. code-block:: python
 	
-	simulator.simulate(10000000, time=110)
+	simulator.simulate(10000000, epidemic_time=110)
 
 Example of output
 
@@ -150,6 +150,13 @@ And the amount of travels is reduced with population 2
 	
 	simulator.set_migration_probability(2/365/2, source=0, target=2)
 	simulator.set_migration_probability(2/365/2, source=1, target=2)
+
+
+#TODO
+
+.. code-block:: python
+
+	simulator.simulate(1000, method='tau')
 
 Visualizing epidemiological trajectories
 ----------------------------------------
@@ -221,6 +228,8 @@ Finally, let’s print population information (size, contact density, sampling m
 Resulting code
 --------------
 
+This code can be found `here <https://github.com/Genomics-HSE/VGsim/blob/main/testing/example.ipynb>`_.
+
 .. code-block:: python
 
 	import VGsim
@@ -254,7 +263,7 @@ Resulting code
 	simulator.set_npi([0.1, 0.01, 0.002])
 	simulator.set_migration_probability(10/365/2)
 
-	simulator.simulate(10000000, time=110)
+	simulator.simulate(10000000, epidemic_time=110)
 
 	simulator.set_immunity_transition(0.05, source=0, target=1)
 	simulator.set_immunity_transition(0.05, source=0, target=2)
@@ -262,6 +271,8 @@ Resulting code
 	simulator.set_contact_density(0.7, population=1)
 	simulator.set_migration_probability(2/365/2, source=0, target=2)
 	simulator.set_migration_probability(2/365/2, source=1, target=2)
+
+	simulator.simulate(1000, method='tau')
 
 	simulator.add_plot_infectious(population=0, haplotype='AA', step_num=100)
 	simulator.add_plot_infectious(population=1, haplotype='AA', step_num=100)

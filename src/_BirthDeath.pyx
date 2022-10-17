@@ -257,8 +257,8 @@ cdef class BirthDeathModel:
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef inline void NewSymptomatic(self, Py_ssize_t pi, Py_ssize_t hi, Py_ssize_t num=1):
-        self.asymtomatic[pi,hi] -= num
-        self.totalAsymptomatic[pi] -= num
+        self.incubated[pi, hi] -= num
+        self.totalIncubated[pi] -= num
         self.symptomatic[pi,hi] += num
         self.totalSymptomatic[pi] += num
 
